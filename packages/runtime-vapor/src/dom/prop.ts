@@ -122,7 +122,9 @@ function setClassIncremental(el: any, value: any): void {
   const prev = el[cacheKey]
   if ((value = el[cacheKey] = normalizeClass(value)) !== prev) {
     const nextList = value.split(/\s+/)
-    el.classList.add(...nextList)
+    if (value) {
+      el.classList.add(...nextList)
+    }
     if (prev) {
       for (const cls of prev.split(/\s+/)) {
         if (!nextList.includes(cls)) el.classList.remove(cls)
@@ -267,7 +269,7 @@ export function optimizePropertyLookup(): void {
   if (isOptimized) return
   isOptimized = true
   const proto = Element.prototype as any
-  proto.$evtclick = undefined
+  proto.$anchor = proto.$evtclick = undefined
   proto.$root = false
   proto.$html =
     proto.$txt =

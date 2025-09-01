@@ -682,4 +682,29 @@ describe('v-on', () => {
       '_delegate(n0, "click", _withModifiers(e => _ctx.test(e), ["stop"]))',
     )
   })
+
+  test('expression with type', () => {
+    const { code } = compileWithVOn(
+      `<div @click="(<number>handleClick as any)"></div>`,
+      {
+        bindingMetadata: {
+          handleClick: BindingTypes.SETUP_CONST,
+        },
+      },
+    )
+    expect(code).matchSnapshot()
+    expect(code).include('n0.$evtclick = e => _ctx.handleClick(e)')
+  })
+
+  test('component event with special characters', () => {
+    const { code } = compileWithVOn(
+      `<Foo @update:model="() => {}" @update-model="() => {}" />`,
+    )
+
+    expect(code).matchSnapshot()
+    expect(code).contains('const _on_update_model = () => {}')
+    expect(code).contains('const _on_update_model1 = () => {}')
+    expect(code).contains('"onUpdate:model": () => _on_update_model')
+    expect(code).contains('"onUpdate-model": () => _on_update_model1')
+  })
 })

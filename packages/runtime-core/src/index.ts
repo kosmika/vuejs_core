@@ -543,6 +543,7 @@ export {
  */
 export {
   currentInstance,
+  setCurrentInstance,
   simpleSetCurrentInstance,
 } from './componentCurrentInstance'
 /**
@@ -557,3 +558,11 @@ export { startMeasure, endMeasure } from './profiling'
  * @internal
  */
 export { initFeatureFlags } from './featureFlags'
+/**
+ * @internal
+ */
+export { createInternalObject } from './internalObject'
+/**
+ * @internal
+ */
+export { createCanSetSetupRefChecker } from './rendererTemplateRef'

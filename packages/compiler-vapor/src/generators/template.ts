@@ -24,7 +24,7 @@ export function genSelf(
   context: CodegenContext,
 ): CodeFragment[] {
   const [frag, push] = buildCodeFragment()
-  const { id, template, operation } = dynamic
+  const { id, template, operation, hasDynamicChild } = dynamic
 
   if (id !== undefined && template !== undefined) {
     push(NEWLINE, `const n${id} = t${template}()`)
@@ -35,12 +35,17 @@ export function genSelf(
     push(...genOperationWithInsertionState(operation, context))
   }
 
+  if (hasDynamicChild) {
+    push(...genChildren(dynamic, context, push, `n${id}`))
+  }
+
   return frag
 }
 
 export function genChildren(
   dynamic: IRDynamicInfo,
   context: CodegenContext,
+  pushBlock: (...items: CodeFragment[]) => number,
   from: string = `n${dynamic.id}`,
 ): CodeFragment[] {
   const { helper } = context
@@ -49,7 +54,6 @@ export function genChildren(
 
   let offset = 0
   let prev: [variable: string, elementIndex: number] | undefined
-  const childrenToGen: [IRDynamicInfo, string][] = []
 
   for (const [index, child] of children.entries()) {
     if (child.flags & DynamicFlag.NON_TEMPLATE) {
@@ -72,17 +76,17 @@ export function genChildren(
     // p for "placeholder" variables that are meant for possible reuse by
     // other access paths
     const variable = id === undefined ? `p${context.block.tempId++}` : `n${id}`
-    push(NEWLINE, `const ${variable} = `)
+    pushBlock(NEWLINE, `const ${variable} = `)
 
     if (prev) {
       if (elementIndex - prev[1] === 1) {
-        push(...genCall(helper('next'), prev[0]))
+        pushBlock(...genCall(helper('next'), prev[0]))
       } else {
-        push(...genCall(helper('nthChild'), from, String(elementIndex)))
+        pushBlock(...genCall(helper('nthChild'), from, String(elementIndex)))
       }
     } else {
       if (elementIndex === 0) {
-        push(...genCall(helper('child'), from))
+        pushBlock(...genCall(helper('child'), from))
       } else {
         // check if there's a node that we can reuse from
         let init = genCall(helper('child'), from)
@@ -91,11 +95,11 @@ export function genChildren(
         } else if (elementIndex > 1) {
           init = genCall(helper('nthChild'), from, String(elementIndex))
         }
-        push(...init)
+        pushBlock(...init)
       }
     }
 
-    if (id === child.anchor) {
+    if (id === child.anchor && !child.hasDynamicChild) {
       push(...genSelf(child, context))
     }
 
@@ -104,13 +108,7 @@ export function genChildren(
     }
 
     prev = [variable, elementIndex]
-    childrenToGen.push([child, variable])
-  }
-
-  if (childrenToGen.length) {
-    for (const [child, from] of childrenToGen) {
-      push(...genChildren(child, context, from))
-    }
+    push(...genChildren(child, context, pushBlock, variable))
   }
 
   return frag

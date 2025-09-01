@@ -6,7 +6,7 @@ import {
   unmountComponent,
 } from './component'
 import { createComment, createTextNode } from './dom/node'
-import { EffectScope, pauseTracking, resetTracking } from '@vue/reactivity'
+import { EffectScope, setActiveSub } from '@vue/reactivity'
 import { isHydrating } from './dom/hydration'
 
 export type Block =
@@ -47,7 +47,7 @@ export class DynamicFragment extends VaporFragment {
     }
     this.current = key
 
-    pauseTracking()
+    const prevSub = setActiveSub()
     const parent = this.anchor.parentNode
 
     // teardown previous branch
@@ -73,7 +73,7 @@ export class DynamicFragment extends VaporFragment {
       parent && insert(this.nodes, parent, this.anchor)
     }
 
-    resetTracking()
+    setActiveSub(prevSub)
   }
 }
 
@@ -105,10 +105,10 @@ export function isValidBlock(block: Block): boolean {
 
 export function insert(
   block: Block,
-  parent: ParentNode,
+  parent: ParentNode & { $anchor?: Node | null },
   anchor: Node | null | 0 = null, // 0 means prepend
 ): void {
-  anchor = anchor === 0 ? parent.firstChild : anchor
+  anchor = anchor === 0 ? parent.$anchor || parent.firstChild : anchor
   if (block instanceof Node) {
     if (!isHydrating) {
       parent.insertBefore(block, anchor)

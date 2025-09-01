@@ -9,6 +9,7 @@ import {
   ErrorCodes,
   type SchedulerJob,
   callWithErrorHandling,
+  createCanSetSetupRefChecker,
   queuePostFlushCb,
   warn,
 } from '@vue/runtime-dom'
@@ -20,6 +21,7 @@ import {
   isString,
   remove,
 } from '@vue/shared'
+import { DynamicFragment } from './block'
 
 export type NodeRef = string | Ref | ((ref: Element) => void)
 export type RefEl = Element | VaporComponentInstance
@@ -49,11 +51,12 @@ export function setRef(
   if (!instance || instance.isUnmounted) return
 
   const setupState: any = __DEV__ ? instance.setupState || {} : null
-  const refValue = isVaporComponent(el) ? getExposed(el) || el : el
+  const refValue = getRefValue(el)
 
   const refs =
     instance.refs === EMPTY_OBJ ? (instance.refs = {}) : instance.refs
 
+  const canSetSetupRef = createCanSetSetupRefChecker(setupState)
   // dynamic ref changed. unset old ref
   if (oldRef != null && oldRef !== ref) {
     if (isString(oldRef)) {
@@ -86,7 +89,7 @@ export function setRef(
       const doSet: SchedulerJob = () => {
         if (refFor) {
           existing = _isString
-            ? __DEV__ && hasOwn(setupState, ref)
+            ? __DEV__ && canSetSetupRef(ref)
               ? setupState[ref]
               : refs[ref]
             : ref.value
@@ -95,7 +98,7 @@ export function setRef(
             existing = [refValue]
             if (_isString) {
               refs[ref] = existing
-              if (__DEV__ && hasOwn(setupState, ref)) {
+              if (__DEV__ && canSetSetupRef(ref)) {
                 setupState[ref] = refs[ref]
                 // if setupState[ref] is a reactivity ref,
                 // the existing will also become reactivity too
@@ -110,7 +113,7 @@ export function setRef(
           }
         } else if (_isString) {
           refs[ref] = refValue
-          if (__DEV__ && hasOwn(setupState, ref)) {
+          if (__DEV__ && canSetSetupRef(ref)) {
             setupState[ref] = refValue
           }
         } else if (_isRef) {
@@ -119,8 +122,7 @@ export function setRef(
           warn('Invalid template ref type:', ref, `(${typeof ref})`)
         }
       }
-      doSet.id = -1
-      queuePostFlushCb(doSet)
+      queuePostFlushCb(doSet, -1)
 
       // TODO this gets called repeatedly in renderEffect when it's dynamic ref?
       onScopeDispose(() => {
@@ -129,7 +131,7 @@ export function setRef(
             remove(existing, refValue)
           } else if (_isString) {
             refs[ref] = null
-            if (__DEV__ && hasOwn(setupState, ref)) {
+            if (__DEV__ && canSetSetupRef(ref)) {
               setupState[ref] = null
             }
           } else if (_isRef) {
@@ -142,4 +144,13 @@ export function setRef(
     }
   }
   return ref
+}
+
+const getRefValue = (el: RefEl) => {
+  if (isVaporComponent(el)) {
+    return getExposed(el) || el
+  } else if (el instanceof DynamicFragment) {
+    return getRefValue(el.nodes as RefEl)
+  }
+  return el
 }
